@@ -13,7 +13,7 @@ Tài liệu này phục vụ **sub-issue #40 (Server-ready runtime)**: chạy da
   - nếu **set** → mọi `/api/*` **trừ** `/api/health` cần token qua:
     - `Authorization: Bearer <token>` **hoặc**
     - `X-Dev-Team-Token: <token>`
-- `DEV_TEAM_ENV` (tuỳ chọn): label môi trường trả về trong `/api/health`.
+- `DEV_TEAM_ENV` (tuỳ chọn): label môi trường trả về trong `/api/health` — xem §11 cho multi-instance.
 
 ## 3. Chạy bằng docker compose
 
@@ -147,3 +147,67 @@ Gợi ý env orchestrator trên server (doc only): `DEV_TEAM_RUNNER_ID=claude-co
 | A | Server chạy job headless | #42 |
 | B | Dev local + push artifact | #42 |
 | C | SSH remote runner | #44 (OUT) |
+
+## 11. Multi-environment (1 instance = 1 env) — #43
+
+**Convention**: mỗi môi trường = một compose stack / process riêng với **port**, **volume**, **`DEV_TEAM_DASHBOARD_HOME`**, **`DEV_TEAM_ENV`** riêng — **không share volume** giữa các env.
+
+| Instance | Host port | Volume name | `DEV_TEAM_DASHBOARD_HOME` (trong container) | `DEV_TEAM_ENV` |
+|---|---|---|---|---|
+| dev-team-dev | 5174 | `dashboard-home-dev` | `/data` | `dev` |
+| dev-team-staging | 5175 | `dashboard-home-staging` | `/data` | `staging` |
+
+**Ví dụ compose override** (service thứ hai hoặc `docker compose -f`):
+
+```yaml
+services:
+  dashboard-staging:
+    image: dev-team-dashboard:latest
+    ports:
+      - "5175:5174"
+    environment:
+      DEV_TEAM_DASHBOARD_HOME: /data
+      DEV_TEAM_ENV: staging
+    volumes:
+      - dashboard-home-staging:/data
+volumes:
+  dashboard-home-staging:
+```
+
+**Xác minh**:
+
+```bash
+curl -sS http://localhost:5174/api/health   # → "env":"dev"
+curl -sS http://localhost:5175/api/health   # → "env":"staging"
+```
+
+UI sidebar hiển thị badge uppercase (`DEV`, `STAGING`, …) khi `env` có trong health response.
+
+**Registry độc lập**: mỗi home có `projects.json` riêng — thêm project trên dev **không** xuất hiện trên staging.
+
+## 12. Backup & restore dashboard home — #43
+
+Biến `DEV_TEAM_DASHBOARD_HOME` (mặc định `~/.dev-team-dashboard`) chứa registry, runners, credentials, logs, `workspaces/`, …
+
+**Backup**:
+
+```bash
+bash scripts/backup-dashboard-home.sh
+# hoặc
+bun run backup:home
+```
+
+Output mặc định: `dev-team-dashboard-backup-<timestamp>.tar.gz` tại thư mục hiện tại. Có thể truyền đường dẫn output tùy chỉnh làm tham số đầu tiên.
+
+**Restore** (dừng instance trước khi restore):
+
+```bash
+export DEV_TEAM_DASHBOARD_HOME=/path/to/restore-home
+mkdir -p "$(dirname "$DEV_TEAM_DASHBOARD_HOME")"
+tar -xzf dev-team-dashboard-backup-YYYYMMDD-HHMMSS.tar.gz -C "$(dirname "$DEV_TEAM_DASHBOARD_HOME")"
+# Khởi động lại dashboard trỏ DEV_TEAM_DASHBOARD_HOME
+```
+
+**Checklist T43-D-01 (manual)**: backup → xóa home test → restore → xác nhận `projects.json` còn nguyên.
+
+**Cảnh báo**: file tar có thể chứa `credentials.json` và dữ liệu nhạy cảm — bảo vệ file backup (`chmod 600`, encrypt at-rest nếu cần).

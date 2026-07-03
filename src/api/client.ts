@@ -1,5 +1,6 @@
 // Thin fetch wrappers around the dev-server API exposed by server/devTeamApi.ts.
 
+import type { HealthResponse } from '../../shared/schemas/health.js'
 import { getApiToken } from '../shared/lib/authToken.js'
 
 // Build a query string from key/value pairs, dropping null/undefined/empty and
@@ -22,6 +23,14 @@ async function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   return fetch(input, { ...init, headers })
+}
+
+// ── Health (global, không project-scoped) ─────────────────────────────────────
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const r = await apiFetch('/api/health')
+  if (!r.ok) throw new Error(`/api/health → ${r.status}`)
+  return r.json()
 }
 
 // ── Project registry ───────────────────────────────────────────────────────────

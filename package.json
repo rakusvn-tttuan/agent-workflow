@@ -13,8 +13,9 @@
     "mcp": "bun mcp/server.ts",
     "workspace:sync": "bun scripts/workspace-sync.ts",
     "workspace:push": "bun scripts/workspace-push.ts",
+    "backup:home": "bash scripts/backup-dashboard-home.sh",
     "typecheck": "vue-tsc --noEmit",
-    "test": "bun test tests/server tests/mcp",
+    "test": "bun test tests/server tests/mcp && bash tests/scripts/backup-dashboard-home.test.sh",
     "test:fe": "vitest run --coverage",
     "test:e2e": "playwright test --pass-with-no-tests",
     "test:all": "bun run typecheck && bun run test && bun run test:fe && bun run test:e2e"
