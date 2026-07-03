@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { fetchProjects } from './api'
+import { fetchHealth, fetchProjects } from './api'
 import { useLocalToggle } from './shared/composables/useLocalToggle'
 import { useTaskPolling } from './features/monitor/composables/useTaskPolling'
 import MonitorLayout from './features/monitor/components/MonitorLayout.vue'
@@ -28,6 +28,7 @@ const projects = ref([])
 const defaultProjectId = ref(null)
 const selectedProjectId = ref(loadSelectedProject())
 const openArtifact = ref(null)
+const envLabel = ref<string | null>(null)
 
 // Task polling (root/tasks/selectedId + connection state + 1500ms loop) lives in
 // a composable so the shell stays thin and the loop is unit-testable.
@@ -76,6 +77,17 @@ async function loadProjects() {
   }
 }
 
+async function loadEnvBadge() {
+  try {
+    const data = await fetchHealth()
+    envLabel.value = data.env?.trim()
+      ? data.env.trim().toUpperCase()
+      : null
+  } catch {
+    envLabel.value = null
+  }
+}
+
 function onSelectProject(id) {
   selectedProjectId.value = id
   selectedId.value = null // reset task selection when switching project
@@ -110,6 +122,7 @@ watch(mode, async (m) => {
 onMounted(async () => {
   loadSidebarPref()
   await loadProjects()
+  void loadEnvBadge()
   start()
 })
 onUnmounted(stop)
@@ -129,6 +142,11 @@ onUnmounted(stop)
           <RailIcon :name="sidebarCollapsed ? 'panelExpand' : 'panelCollapse'" />
         </button>
         <h1 v-if="!sidebarCollapsed">Dev Team</h1>
+        <span
+          v-if="envLabel && !sidebarCollapsed"
+          class="badge env-badge"
+          :title="`Môi trường: ${envLabel}`"
+        >{{ envLabel }}</span>
         <span
           v-if="!sidebarCollapsed"
           class="dot"
